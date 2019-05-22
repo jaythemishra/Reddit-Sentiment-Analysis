@@ -1,1 +1,1 @@
-We haven't figured out how to deal with multiple links in a line yet.
+We sometimes run into edge cases with multiple ending punctuation, e.g, (around.) => around.
