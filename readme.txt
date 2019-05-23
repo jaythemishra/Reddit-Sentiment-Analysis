@@ -1,1 +1,2 @@
-We sometimes run into edge cases with multiple ending punctuation, e.g, (around.) => around.
+We handled the edge cases that we were able to find, such as removing multiple markup links in the same comment and parsing words with multiple punctuation marks around them (e.g. "hello,").
+Our sanitize function follows the spec to our knowledge.
