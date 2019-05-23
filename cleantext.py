@@ -118,7 +118,7 @@ def isPunctuation(c):
 def replace_url_text(text):
     # Look for URLs in string
     text__removed_urls = ""
-    url_regex = r'\[.*\]\(https?:\/\/[^\)]*\)'
+    url_regex = r'\[[^\]]*\]\(https?:\/\/[^\)]*\)'
     url_text_regex = r'\[.*\]'
 
     # find all instances of hyperlinks
@@ -247,7 +247,10 @@ def sanitize(text):
     text__removed_extra_whitespace = ' '.join(text__replaced_link_text.split())
 
     text__split = text__removed_extra_whitespace.lower().split()
-    text__removed_punctuation = remove_punctuation(text__split)
+    text__removed_punctuation = remove_punctuation(
+        remove_punctuation(text__split))
+    # Note: called twice to go over edge cases where there will be multiple punctuations
+    # in a row that should be parsed over
 
     parsed_text = ' '.join(text__removed_punctuation)
     unigrams = get_unigrams(text__removed_punctuation)
@@ -282,20 +285,20 @@ if __name__ == "__main__":
     sanitized_data = []
 
     # This is just one test case, comment this out for final submission
-    print(sanitize(
-        'He did BS his way in, I\'m also not the person that said they want to punch him (or anyone.) I think you\'re confusing posters.\n\nThe guy is known for not knowing what he\'s talking [about ](https://www.google.com/amp/s/amp.businessinsider.com/sebastian-gorka-trump-bio-profile-2017-2) \n\nHis credentials are well known to be [bogus.](https://www.rollingstone.com/politics/features/sebastian-gorka-the-west-wings-phony-foreign-policy-guru-w496912) \n\nAnd he\'s never served in the military or any intel agency as far as I can tell. He does however play Nazi   [dress up.](https://www.google.com/amp/s/www.nbcnews.com/news/world/amp/sebastian-gorka-made-nazi-linked-vitezi-rend-proud-wearing-its-n742851)'))
+    # print(sanitize(
+    #     'Some clips of O\'Reilly being a \"centrist:\" \n\n[President Obama and Islam](https://youtu.be/EgFp9n1FTEk)\n\n[A compilation of him attacking black people](https://youtu.be/t4AVaMwEH1A)\n\n[\"There\'s got to be some downside to a woman being president, right?\"](https://youtu.be/SNMcdhkKok8)\n\n[O\'Reilly defending stop and frisk](https://youtu.be/u3u2m17-tXI)'))
 
     # Uncomment below lines to read through the filename passed in
-    # try:
-    #     with open(filename, 'r') as json_file:
-    #         for line in json_file:
-    #             data.append(json.loads(line))
+    try:
+        with open(filename, 'r') as json_file:
+            for line in json_file:
+                data.append(json.loads(line))
 
-    #     for comment in data:
-    #         sanitized_data.append(sanitize(comment['body']))
+        for comment in data:
+            sanitized_data.append(sanitize(comment['body']))
 
-    #     print(sanitized_data)
-    # except:
-    #     sys.exit('There was a problem opening the file.')
-    # finally:
-    #     json_file.close()
+        print(sanitized_data)
+    except:
+        sys.exit('There was a problem opening the file.')
+    finally:
+        json_file.close()
