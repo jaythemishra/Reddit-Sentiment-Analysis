@@ -35,6 +35,11 @@ def negative(label):
 def combine(allgrams):
     return allgrams[1].split() + allgrams[2].split() + allgrams[3].split()
 
+def get_pos_score(probability_vec):
+    return (0, 1)[float(probability_vec[1]) > 0.20]
+
+def get_neg_score(probability_vec):
+    return (0, 1)[float(probability_vec[1]) > 0.25]
 
 def main(context):
     # YOUR CODE HERE
@@ -62,8 +67,8 @@ def main(context):
     else:
         submission_df = spark.read.json("submissions.json.bz2")
         comments_df = spark.read.json("comments-minimal.json.bz2")
-        submission_df.write.parquet("submissions_parquet")
-        comments_df.write.parquet("comments_parquet")
+        submission_df.write.parquet("submissions.parquet")
+        comments_df.write.parquet("comments.parquet")
         print()
         print("WROTE PARQUET")
         print()
@@ -167,9 +172,43 @@ def main(context):
     submission_title_df = submission_df.select("id", "title")
     task8_join_df = submission_title_df.alias("b").join(
         task8_stripped_df.alias("a"), task8_stripped_df.linkid == submission_title_df.id).select("a.id", "a.created_utc", "a.linkid", "a.author_flair_text", "b.title", "a.body")
-    task8_join_df.show()
 
-    # TASK 9 AND 10 STILL NEED TO BE FINISHED
+    # TASK 9
+    # Filter out all comments with "/s" and comments that start with "&gt"
+    filtered_sarcasm_comments_df = task8_join_df.filter(
+        ~(task8_join_df.body.like("%/s%"))
+    )
+    filtered_all_comments_df = filtered_sarcasm_comments_df.filter(
+        ~(filtered_sarcasm_comments_df.body.like("&gt;%"))
+    )
+    # Generate all unigrams, bigrams, and trigrams and store into a column -- see TASK 4
+    task9_allgrams_df = filtered_all_comments_df.withColumn("allgrams", sanitize_udf("body"))
+    # Combine allgrams into one column -- see TASK 5
+    task9_combinedgrams_df = task9_allgrams_df.withColumn(
+        "combinedgrams", combine_udf("allgrams"))
+    # Apply the countervectorizer model on the new data -- see TASK 6A
+    task9_df = model.transform(task9_combinedgrams_df)
+
+    # Apply classifier to the dataframes
+    get_pos_score_udf = udf(get_pos_score, IntegerType())
+    get_neg_score_udf = udf(get_neg_score, IntegerType())
+
+    # Get positive scores
+    posResult = posModel.transform(task9_df)
+    posResult = posResult.drop('rawPrediction').drop('prediction')
+    posResultLabeled = posResult.withColumn("is_positive", get_pos_score_udf("probability"))
+    pos_result_final_df = posResultLabeled.drop('probability') # Needed so it doesn't conflict with next step, when probability is added again
+
+    # Combine with negative scores
+    withNegResults = negModel.transform(pos_result_final_df)
+    withNegResults = withNegResults.drop('rawPrediction').drop('prediction')
+    task9_df = withNegResults.withColumn("is_negative", get_neg_score_udf("probability"))
+    results = task9_df.drop('probability')
+
+    results.show()
+
+    # TASK 10 HERE
+
 
 
 if __name__ == "__main__":
