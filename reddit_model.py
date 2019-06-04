@@ -203,11 +203,35 @@ def main(context):
     withNegResults = negModel.transform(pos_result_final_df)
     withNegResults = withNegResults.drop('rawPrediction').drop('prediction')
     task9_df = withNegResults.withColumn("is_negative", get_neg_score_udf("probability"))
-    results = task9_df.drop('probability')
+    results = task9_df.drop('probability').drop('allgrams').drop('combinedgrams').drop('features')
 
-    results.show()
+    # Save to CSV for testing
+    results.limit(40).toPandas().to_csv("sample_data.csv", header=True)
+    sqlContext.registerDataFrameAsTable(results, "results")
 
     # TASK 10 HERE
+    # Compute the percentage of comments that were positive and the percentage 
+    # of comments that were negative across all submissions/posts. 
+    task10_1_df = sqlContext.sql(
+        'SELECT * FROM results LIMIT 20'
+    )
+
+    task10_1_df.show()
+
+    # Compute the percentage of comments that were positive and the percentage of 
+    # comments that were negative across all days. Check out from from_unixtime function.
+
+    # Compute the percentage of comments that were positive and the percentage 
+    # of comments that were negative across all states. There is a Python list 
+    # of US States here. Just copy and paste it.
+
+    # Compute the percentage of comments that were positive and the percentage of 
+    # comments that were negative by comment and story score, independently. You will 
+    # want to be careful about quotes. Check out the quoteAll option.
+
+    # Any other dimensions you compute will receive extra credit if they make sense based on the data you have.
+
+
 
 
 
