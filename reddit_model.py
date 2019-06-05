@@ -93,7 +93,7 @@ def main(context):
     # Copied from Spark docs
     # TASK 6A
     cv = CountVectorizer(inputCol="combinedgrams",
-                         outputCol="features", minDF=10.0, binary=True)
+                            outputCol="features", minDF=10.0, binary=True)
     model = cv.fit(combinedgrams_df)
     result_df = model.transform(combinedgrams_df)
 
@@ -164,14 +164,14 @@ def main(context):
     # TASK 8
     strip_link_udf = udf(strip_link, StringType())
     task8_df = comments_df.select(
-        "id", "created_utc", "link_id", "author_flair_text", "body")
+        "id", "created_utc", "link_id", "author_flair_text", "body", "score")
     task8_stripped_df = task8_df.withColumn(
         "linkid", strip_link_udf("link_id"))
     task8_stripped_df = task8_stripped_df.select(
-        "id", "created_utc", "linkid", "body", "author_flair_text")
+        "id", "created_utc", "linkid", "body", "author_flair_text", "score")
     submission_title_df = submission_df.select("id", "title")
     task8_join_df = submission_title_df.alias("b").join(
-        task8_stripped_df.alias("a"), task8_stripped_df.linkid == submission_title_df.id).select("a.id", "a.created_utc", "a.linkid", "a.author_flair_text", "b.title", "a.body")
+        task8_stripped_df.alias("a"), task8_stripped_df.linkid == submission_title_df.id).select("a.id", "a.created_utc", "a.linkid", "a.score", "a.author_flair_text", "b.title", "a.body")
 
     # TASK 9
     # Filter out all comments with "/s" and comments that start with "&gt"
@@ -205,29 +205,43 @@ def main(context):
     task9_df = withNegResults.withColumn("is_negative", get_neg_score_udf("probability"))
     results = task9_df.drop('probability').drop('allgrams').drop('combinedgrams').drop('features')
 
+
+    results = results.sample(False, .05, 12345)
+    # results.write.parquet("results.parquet")
+
+    # print("Wrote to parquet")
+
     # Save to CSV for testing
-    results.limit(40).toPandas().to_csv("sample_data.csv", header=True)
+    # results.limit(40).toPandas().to_csv("sample_data.csv", header=True)
     sqlContext.registerDataFrameAsTable(results, "results")
 
     # TASK 10 HERE
     # Compute the percentage of comments that were positive and the percentage 
     # of comments that were negative across all submissions/posts. 
-    task10_1_df = sqlContext.sql(
-        'SELECT * FROM results LIMIT 20'
-    )
 
-    task10_1_df.show()
+    # task10_1_total_comments_per_link = results.limit(40).groupBy('linkid').count().show()
+    # task10_1_total_pos_per_link = results.limit(40).groupBy('linkid').sum('is_positive').show()
+    # task10_1_total_neg_per_link = results.limit(40).groupBy('linkid').sum('is_negative').show()
+    task10_1 = sqlContext.sql('SELECT 100 * avg(is_positive) AS avg_pos, 100 * avg(is_negative) AS avg_neg FROM results')
+    task10_1.repartition(1).write.format("com.databricks.spark.csv").option("header", "true").save("task10_1.csv")
 
-    # Compute the percentage of comments that were positive and the percentage of 
-    # comments that were negative across all days. Check out from from_unixtime function.
 
-    # Compute the percentage of comments that were positive and the percentage 
-    # of comments that were negative across all states. There is a Python list 
-    # of US States here. Just copy and paste it.
+        # Compute the percentage of comments that were positive and the percentage of 
+        # comments that were negative across all days. Check out from from_unixtime function.
+    task10_2 = sqlContext.sql('SELECT avg(is_positive) AS avg_pos, avg(is_negative) AS avg_neg, DATE(FROM_UNIXTIME(created_utc)) AS date FROM results GROUP BY date ORDER BY date')
+    task10_2.repartition(1).write.format("com.databricks.spark.csv").option("header", "true").save("task10_2.csv")
 
-    # Compute the percentage of comments that were positive and the percentage of 
-    # comments that were negative by comment and story score, independently. You will 
-    # want to be careful about quotes. Check out the quoteAll option.
+        # Compute the percentage of comments that were positive and the percentage 
+        # of comments that were negative across all states. There is a Python list 
+        # of US States here. Just copy and paste it.
+    task10_3 = sqlContext.sql('SELECT author_flair_text AS state,  100 * avg(is_positive) AS avg_pos, 100 * avg(is_negative) as avg_neg, 100 * avg(is_positive) - 100 * avg(is_negative) AS diff FROM results WHERE author_flair_text IN (\'Alabama\', \'Alaska\', \'Arizona\', \'Arkansas\', \'California\', \'Colorado\', \'Connecticut\', \'Delaware\', \'District of Columbia\', \'Florida\', \'Georgia\', \'Hawaii\', \'Idaho\' ,\'Illinois\', \'Indiana\', \'Iowa\', \'Kansas\', \'Kentucky\', \'Louisiana\', \'Maine\', \'Maryland\',\'Massachusetts\', \'Michigan\', \'Minnesota\', \'Mississippi\', \'Missouri\', \'Montana\', \'Nebraska\', \'Nevada\', \'New Hampshire\', \'New Jersey\', \'New Mexico\', \'New York\', \'North Carolina\', \'North Dakota\', \'Ohio\', \'Oklahoma\', \'Oregon\', \'Pennsylvania\', \'Rhode Island\',\'South Carolina\', \'South Dakota\', \'Tennessee\', \'Texas\', \'Utah\', \'Vermont\', \'Virginia\', \'Washington\', \'West Virginia\', \'Wisconsin\', \'Wyoming\') GROUP BY author_flair_text ORDER BY author_flair_text')
+    task10_3.repartition(1).write.format("com.databricks.spark.csv").option("header", "true").save("task10_3.csv")
+
+        # Compute the percentage of comments that were positive and the percentage of 
+        # comments that were negative by comment and story score, independently. You will 
+        # want to be careful about quotes. Check out the quoteAll option.
+    task10_4 = sqlContext.sql('SELECT 100 * avg(is_poasitive) AS avg_pos, 100 * avg(is_negative) AS avg_neg, score FROM results GROUP BY score')
+    task10_4.repartition(1).write.format("com.databricks.spark.csv").option("header", "true").save("task10_4.csv")
 
     # Any other dimensions you compute will receive extra credit if they make sense based on the data you have.
 
